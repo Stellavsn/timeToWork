@@ -1,33 +1,46 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-  
-module.exports= {
-    data: new SlashCommandBuilder()
-        .setName('moveme')
-        .setDescription('Moving you !'),
-    
+    module.exports= {
+        data: new SlashCommandBuilder()
+            .setName('moveme')
+            .setDescription('Move me to another channel for a specified time')
+            .addChannelOption(option =>
+                option.setName('channel')
+                    .setDescription('The channel where you want to be moved')
+                    .setRequired(true))
+            .addIntegerOption(option =>
+                option.setName('duration')
+                    .setDescription('The duration in minutes for how long you want to be moved')
+                    .setRequired(true)),
         async execute(interaction) {
-            // Logique de commande pour déplacer l'utilisateur dans un autre canal
-            try {
-                // Afficher l'ID du canal vocal cible
-                const targetChannelId = '1234843539544866856'; // Remplacez 'ID_DU_NOUVEAU_CANAL' par l'ID du canal où vous souhaitez déplacer l'utilisateur
-                console.log('Trying to move member to channel with ID:', targetChannelId);
+            const targetChannel = interaction.options.getChannel('channel');
+            const duration = interaction.options.getInteger('duration');
     
-                // Déplacer l'utilisateur dans le canal vocal cible
-                await interaction.member.voice.setChannel(targetChannelId); 
-                setTimeout(()=> {
-                    VoiceChannel.updateOverwrite(message.author,{
-                        CONNECT : null
-                    });
-                }, 3600000);
-                
-                // Répondre à l'interaction avec un message de confirmation
-                await interaction.reply('You have been moved!');
-            } catch (error) {
-                // Gérer les erreurs et envoyer un message d'erreur à l'utilisateur
-                console.error('Error while moving member:', error);
-                await interaction.reply({ content: 'There was an error while moving you!', ephemeral: true });
+            const member = interaction.member;
+    
+            if (!member.voice.channel) {
+                return interaction.reply('You need to be in a voice channel to use this command.');
             }
-        },
+    
+            const originalChannel = member.voice.channel;
+    
+            await member.voice.setChannel(targetChannel);
+            await interaction.reply(`You have been moved to ${targetChannel.name} for ${duration} minutes.`);
+    
+            const endTime = Date.now() + duration * 60 * 1000;
+    
+            // Function to keep the user in the target channel
+            const keepInChannel = async () => {
+                if (Date.now() < endTime) {
+                    if (member.voice.channel && member.voice.channel.id !== targetChannel.id) {
+                        await member.voice.setChannel(targetChannel);
+                    }
+                    setTimeout(keepInChannel, 5000);
+                } else {
+                    await member.voice.setChannel(originalChannel);
+                    interaction.followUp(`You have been moved back to ${originalChannel.name}.`);
+                }
+            };
+    
+            keepInChannel();
+        }
     };
-
-   
